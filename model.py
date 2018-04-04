@@ -51,7 +51,7 @@ class RNNPredictNet(nn.Module):
         return eos, pi, mu1, mu2, sigma1, sigma2, rho
 
     def forward(self, x):
-        # print(x.size())
+        
         x = x.transpose(0, 1).contiguous()
 
         if self.hidden is not None:
