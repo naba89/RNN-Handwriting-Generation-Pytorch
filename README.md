@@ -20,10 +20,13 @@ You can find a model trained with the default parameters for 30 epochs in the [s
 
 ![example](https://rawgit.com/naba89/RNN-Handwriting-Generation-Pytorch/master/loss.png)
 
-A generated sample from the trained network:
+Some generated samples from the trained network:
 
 
 ![example](https://rawgit.com/naba89/RNN-Handwriting-Generation-Pytorch/master/output/sample.color.svg)
+![example](https://rawgit.com/naba89/RNN-Handwriting-Generation-Pytorch/master/output/sample1.color.svg)
+![example](https://rawgit.com/naba89/RNN-Handwriting-Generation-Pytorch/master/output/sample2.color.svg)
+![example](https://rawgit.com/naba89/RNN-Handwriting-Generation-Pytorch/master/output/sample3.color.svg)
 
 Well it does look like handwriting! 
 
