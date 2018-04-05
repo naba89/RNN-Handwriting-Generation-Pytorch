@@ -37,6 +37,12 @@ class RNNPredictNet(nn.Module):
         # MDN layers
         self.MDN = nn.Linear(in_features=self.hidden_size, out_features=self.out_size)
 
+    def repackage_hidden(self, h):
+        if type(h) == Variable:
+            return Variable(h.data)
+        else:
+            return tuple(self.repackage_hidden(v) for v in h)
+
     @staticmethod
     def split_mdn_out(x):
         eos = F.sigmoid(x[:, 0]).view(-1, 1).contiguous()
