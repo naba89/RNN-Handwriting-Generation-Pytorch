@@ -27,6 +27,7 @@ with open(os.path.join(sample_args.model_dir, 'config.pkl'), 'rb') as f:
 
 model = RNNPredictNet(saved_args)
 model.load_state_dict(torch.load(sample_args.model_dir + '/model.pth')['model'])
+model.eval()
 if USE_CUDA:
     model = model.cuda()
 
