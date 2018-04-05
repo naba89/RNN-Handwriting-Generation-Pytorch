@@ -11,10 +11,12 @@ from torch.autograd import Variable
 
 from loss_functions import PredictionLoss
 from model import RNNPredictNet
-from sample import sample_stroke
 from utils import DataLoader
 
+from tensorboardX import SummaryWriter
+
 USE_CUDA = torch.cuda.is_available()
+writer = SummaryWriter()
 
 
 def main():
@@ -110,6 +112,7 @@ def train(args):
             optimizer.step()
 
             training_loss.append(train_loss.data[0])
+            writer.add_scalar('Training Loss', train_loss.data[0], train_step)
 
             model.eval()
             output = model(Variable(v_x, volatile=True))
@@ -128,7 +131,7 @@ def train(args):
                     end - start))
 
             if (train_step %
-                args.save_every == 0) and (train_step > 0):
+                    args.save_every == 0) and (train_step > 0):
                 checkpoint_path = os.path.join(
                     args.model_dir, 'model.pth')
                 torch.save({
@@ -139,10 +142,12 @@ def train(args):
                 },
                     checkpoint_path)
                 from sample import sample_stroke
-                sample_stroke()
+
+                _, img = sample_stroke()
                 print("model saved to {}".format(checkpoint_path))
         lr_scheduler.step()
 
 
 if __name__ == '__main__':
     main()
+    writer.close()
