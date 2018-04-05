@@ -5,6 +5,12 @@ import torch
 from model import RNNPredictNet
 from utils import *
 
+import wand.color
+import wand.image
+
+import imageio
+
+
 USE_CUDA = torch.cuda.is_available()
 
 parser = argparse.ArgumentParser()
@@ -57,7 +63,18 @@ def sample_stroke():
         params,
         factor=sample_args.scale_factor,
         svg_filename=sample_args.filename + '.pdf.svg')
-    return [strokes, params]
+
+    with wand.image.Image() as image:
+        with open(sample_args.filename + '.normal.svg', 'rb') as svg_file:
+            image.read(blob=svg_file.read())
+            png_image = image.make_blob("png32")
+
+    with open(sample_args.filename + '.png', "wb") as out:
+        out.write(png_image)
+
+    img = imageio.imread(sample_args.filename + '.png')
+
+    return [strokes, params], img
 
 
 if __name__ == '__main__':
