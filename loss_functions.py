@@ -34,7 +34,7 @@ class PredictionLoss(nn.Module):
 
         eos, pi, mu1, mu2, sigma1, sigma2, rho = output
 
-        x_1, x_2, x_eos = torch.chunk(target.view(-1, 3).contiguous(), chunks=3, dim=2)
+        x_1, x_2, x_eos = torch.chunk(target.view(-1, 3).contiguous(), chunks=3, dim=1)
 
         gaussian = self.gaussian_2d(x_1, x_2, mu1, mu2, sigma1, sigma2, rho)
 

@@ -28,6 +28,7 @@ def get_bounds(data, factor):
 
     return (min_x, max_x, min_y, max_y)
 
+
 # old version, where each path is entire stroke (smaller svg size, but
 # have to keep same color)
 
@@ -194,23 +195,32 @@ def draw_strokes_pdf(data, param, factor=10, svg_filename='sample_pdf.svg'):
     display(SVG(dwg.tostring()))
 
 
+def vectorization(c, char_dict):
+    x = np.zeros((len(c), len(char_dict) + 1), dtype=np.bool)
+    for i, c_i in enumerate(c):
+        if c_i in char_dict:
+            x[i, char_dict[c_i]] = 1
+        else:
+            x[i, 0] = 1
+    return x
+
+
 class DataLoader():
-    def __init__(
-            self,
-            batch_size=50,
-            seq_length=300,
-            scale_factor=10,
-            limit=500):
+    def __init__(self, batch_size=50, seq_length=300, scale_factor = 10, limit = 500,
+                 chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
+                 points_per_char=25):
         self.data_dir = "./data"
         self.batch_size = batch_size
         self.seq_length = seq_length
-        self.scale_factor = scale_factor  # divide data by this factor
-        self.limit = limit  # removes large noisy gaps in the data
+        self.scale_factor = scale_factor # divide data by this factor
+        self.limit = limit # removes large noisy gaps in the data
+        self.chars = chars
+        self.points_per_char = points_per_char
 
         data_file = os.path.join(self.data_dir, "strokes_training_data.cpkl")
-        raw_data_dir = self.data_dir + "/lineStrokes"
+        raw_data_dir = self.data_dir+"/lineStrokes"
 
-        if not (os.path.exists(data_file)):
+        if not (os.path.exists(data_file)) :
             print("creating training data pkl file from raw source")
             self.preprocess(raw_data_dir, data_file)
 
@@ -225,9 +235,9 @@ class DataLoader():
         # Set the directory you want to start from
         rootDir = data_dir
         for dirName, subdirList, fileList in os.walk(rootDir):
-            #print('Found directory: %s' % dirName)
+            # print('Found directory: %s' % dirName)
             for fname in fileList:
-                #print('\t%s' % fname)
+                # print('\t%s' % fname)
                 filelist.append(dirName + "/" + fname)
 
         # function to read each individual xml file
@@ -281,52 +291,75 @@ class DataLoader():
                     counter += 1
             return stroke_data
 
+        def find_c_of_xml(filename):
+            num = int(filename[-6: -4])
+            txt = open(filename.replace(data_dir, './data/ascii')[0:-7] + '.txt', 'r').readlines()
+            for i, t in enumerate(txt):
+                if t[0:4] == 'CSR:':
+                    if (i + num + 1 < len(txt)):
+                        return txt[i + num + 1][0:-1]
+                    else:
+                        print("error in " + filename)
+
+                        return None
+
         # build stroke database of every xml file inside iam database
         strokes = []
+        c = []
         for i in range(len(filelist)):
-            if (filelist[i][-3:] == 'xml'):
+            if filelist[i][-3:] == 'xml':
                 print('processing ' + filelist[i])
-                strokes.append(
-                    convert_stroke_to_array(
-                        getStrokes(
-                            filelist[i])))
+                c_i = find_c_of_xml(filelist[i])
+                if c_i:
+                    c.append(c_i)
+                    strokes.append(
+                        convert_stroke_to_array(
+                            getStrokes(
+                                filelist[i])))
 
         f = open(data_file, "wb")
-        pickle.dump(strokes, f, protocol=2)
+        pickle.dump((strokes, c), f, protocol=2)
         f.close()
 
     def load_preprocessed(self, data_file):
         f = open(data_file, "rb")
-        self.raw_data = pickle.load(f)
+        (self.raw_data, self.raw_c) = pickle.load(f)
         f.close()
 
         # goes thru the list, and only keeps the text entries that have more
         # than seq_length points
         self.data = []
         self.valid_data = []
+        self.c = []
         counter = 0
 
         # every 1 in 20 (5%) will be used for validation data
         cur_data_counter = 0
-        for data in self.raw_data:
-            if len(data) > (self.seq_length + 2):
+        for i, data in enumerate(self.raw_data):
+            if len(data) > (self.seq_length + 2) and len(self.raw_c[i]) >= 10:
                 # removes large gaps from the data
                 data = np.minimum(data, self.limit)
                 data = np.maximum(data, -self.limit)
                 data = np.array(data, dtype=np.float32)
                 data[:, 0:2] /= self.scale_factor
                 cur_data_counter = cur_data_counter + 1
-                if cur_data_counter % 20 == 0:
-                    self.valid_data.append(data)
-                else:
-                    self.data.append(data)
-                    # number of equiv batches this datapoint is worth
-                    counter += int(len(data) / ((self.seq_length + 2)))
+                self.data.append(data)
+                self.c.append(self.raw_c[i])
+                counter += int(len(data) / ((self.seq_length + 2)))  # number of equiv batches this datapoint is worth
 
-        print("train data: {}, valid data: {}".format(
-            len(self.data), len(self.valid_data)))
+        print("%d strokes available" % len(self.data))
         # minus 1, since we want the ydata to be a shifted version of x data
         self.num_batches = int(counter / self.batch_size)
+        self.max_U = int(self.seq_length / self.points_per_char)
+        self.char_to_indices = dict((c, i + 1) for i, c in enumerate(self.chars))  # 0 for unknown
+        self.c_vec = []
+        for i in range(len(self.c)):
+            if len(self.c[i]) >= self.max_U:
+                self.c[i] = self.c[i][:self.max_U]
+            else:
+                self.c[i] = self.c[i] + ' ' * (self.max_U - len(self.c[i]))
+
+            self.c_vec.append(vectorization(self.c[i], self.char_to_indices))
 
     def validation_data(self):
         # returns validation data
@@ -343,19 +376,22 @@ class DataLoader():
         # returns a randomised, seq_length sized portion of the training data
         x_batch = []
         y_batch = []
+        c_vec_batch = []
+        c_batch = []
         for i in range(self.batch_size):
             data = self.data[self.pointer]
-            # number of equiv batches this datapoint is worth
-            n_batch = int(len(data) / ((self.seq_length + 2)))
-            idx = random.randint(0, len(data) - self.seq_length - 2)
-            x_batch.append(np.copy(data[idx:idx + self.seq_length]))
-            y_batch.append(np.copy(data[idx + 1:idx + self.seq_length + 1]))
-            # adjust sampling probability.
-            if random.random() < (1.0 / float(n_batch)):
-                # if this is a long datapoint, sample this data more with
-                # higher probability
-                self.tick_batch_pointer()
-        return x_batch, y_batch
+            # n_batch = int(len(data)/((self.seq_length+2))) # number of equiv batches this datapoint is worth
+            # idx = random.randint(0, len(data)-self.seq_length-2)
+            # x_batch.append(np.copy(data[idx:idx+self.seq_length]))
+            # y_batch.append(np.copy(data[idx+1:idx+self.seq_length+1]))
+            x_batch.append(np.copy(data[0:self.seq_length]))
+            y_batch.append(np.copy(data[1:self.seq_length + 1]))
+            c_vec_batch.append(self.c_vec[self.pointer])
+            c_batch.append(self.c[self.pointer])
+            # if random.random() < (1.0/float(n_batch)): # adjust sampling probability.
+            # if this is a long datapoint, sample this data more with higher probability
+            self.tick_batch_pointer()
+        return x_batch, y_batch, c_vec_batch, c_batch
 
     def tick_batch_pointer(self):
         self.pointer += 1
